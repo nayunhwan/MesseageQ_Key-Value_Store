@@ -7,11 +7,13 @@
 #include <string>
 #include <thread>
 
+
 #define BUFF_SIZE 100
 
 #define PUT_DATA 1
 #define GET_DATA 2
 #define DEL_DATA 3
+#define DATA_COUNT 9
 
 using namespace std;
 
@@ -24,13 +26,13 @@ typedef struct {
 key_t requestQ = 1000;
 key_t responseQ = 1001;
 
-int ndx = 0;
+unsigned int ndx = 0;
 int requestQID;
 int responseQID;
 t_data data;
 
 unsigned int stringToInt(char *s) {
-	int result = 0;
+	unsigned int result = 0;
 	int len = strlen(s);
 	for(int i = 0; i < len; i++){
 		result *= 10;
@@ -49,7 +51,7 @@ void exceptionErr(int err, string s) {
 void putKey(t_data sndData) {
 	int err = msgsnd(requestQID, &sndData, sizeof(t_data) - sizeof(long), 0);
 	exceptionErr(err, "putKey 실패");
-	printf("key = %d value = %s\n", sndData.key, sndData.value);
+	printf("PUT :: key = %d value = %s\n", sndData.key, sndData.value);
 }
 
 void getKey(t_data sndData) {
@@ -57,9 +59,9 @@ void getKey(t_data sndData) {
 	exceptionErr(err, "getKey request 실패");
 
 	t_data rcvData;
-	err = msgrcv(responseQID, &rcvData, sizeof(t_data)-sizeof(long), GET_DATA, 0);
+	err = msgrcv(responseQID, &rcvData, sizeof(t_data) - sizeof(long), GET_DATA, 0);
 	exceptionErr(err, "getKey response 실패");
-	printf("key = %d value = %s\n", rcvData.key, rcvData.value);
+	printf("GET :: key = %d value = %s\n", rcvData.key, rcvData.value);
 
 }
 
@@ -68,6 +70,68 @@ void deleteKey(t_data sndData) {
 	exceptionErr(err, "deleteKey request 실패");
 }
 
+void getDataCount() {
+	printf("get data count\n");
+	t_data sndData;
+	sndData.data_type = DATA_COUNT;
+	int err = msgsnd(requestQID, &sndData, sizeof(t_data) - sizeof(long), 0);
+	exceptionErr(err, "get data count 실패");
+
+	t_data rcvData;
+	err = msgrcv(responseQID, &rcvData, sizeof(t_data) - sizeof(long), DATA_COUNT, 0);
+	ndx = rcvData.key;
+	printf("ndx = %d\n", ndx);
+} 
+
+
+
+
+string generateRandomString() {
+	string str;
+	int len = rand()%10 + 10;
+	char s[len];
+	for(int i = 0; i < len; i++){
+		s[i] = (rand()%2 == 0)? rand()%('z'-'a') + 'a' : rand()%('z'-'a') + 'A';
+	}
+	s[len] = '\0';
+	str = s;
+	return str;
+}
+
+void generateRandomData() {
+
+	int n = rand()%90 + 50;
+	while(n--) {
+		t_data sndData;
+		sndData.data_type = PUT_DATA;
+		sndData.key = ndx++;
+		string str = generateRandomString();		
+		strcpy(sndData.value, str.c_str());
+		putKey(sndData);
+	}
+
+}
+
+void geneateTestSet() {
+	int n = rand()%90 + 100;
+	while(n--) {
+		int select = rand()%100 + 1;
+		if(select <= 95) {
+			t_data sndData;
+			sndData.data_type = GET_DATA;
+			sndData.key = rand()%ndx;
+			getKey(sndData);
+		}
+		else {
+			t_data sndData;
+			sndData.data_type = PUT_DATA;
+			sndData.key = ndx++;
+			string str = generateRandomString();		
+			strcpy(sndData.value, str.c_str());
+			putKey(sndData);
+		}
+	}
+}
 
 
 int main(){
@@ -77,11 +141,16 @@ int main(){
 	responseQID = msgget(responseQ, IPC_CREAT | 0666);
 	exceptionErr(responseQID, "RESPONSE QUEUE ERROR");
 
+
+	getDataCount();
+
+
 	while(1) {
 		
 		char op[100];
 		char input[BUFF_SIZE];
 		scanf("%s %s", op, input);
+		srand(time(NULL));
 
 		// Push Data
 		if(strcmp(op, "push") == 0) {
@@ -106,8 +175,13 @@ int main(){
 			sndData.key = stringToInt(input);
 			deleteKey(sndData);
 		}
+		else if(strcmp(op, "ran") == 0) {
+			generateRandomData();
+		}
+		else if(strcmp(op, "test") == 0){
+			geneateTestSet();
+		}
 
-		
 		sleep(1);
 	}
 

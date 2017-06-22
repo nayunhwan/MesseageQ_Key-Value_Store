@@ -9,6 +9,10 @@
 
 #define BUFF_SIZE 100
 
+#define PUT_DATA 1
+#define GET_DATA 2
+#define DEL_DATA 3
+
 using namespace std;
 
 typedef struct {
@@ -17,11 +21,13 @@ typedef struct {
 	char value[BUFF_SIZE];
 } t_data;
 
-key_t msgQKey = 1000;
-int ndx = 0;
-int msqid;
-t_data data;
+key_t requestQ = 1000;
+key_t responseQ = 1001;
 
+int ndx = 0;
+int requestQID;
+int responseQID;
+t_data data;
 
 unsigned int stringToInt(char *s) {
 	int result = 0;
@@ -41,42 +47,37 @@ void exceptionErr(int err, string s) {
 }
 
 void putKey(t_data sndData) {
-
-	int err = msgsnd(msqid, &sndData, sizeof(t_data) - sizeof(long), 0);
-		if(err == -1) {
-			perror("msgsnd() 실패");
-			exit(1);
-	}
-
+	int err = msgsnd(requestQID, &sndData, sizeof(t_data) - sizeof(long), 0);
+	exceptionErr(err, "putKey 실패");
 	printf("key = %d value = %s\n", sndData.key, sndData.value);
 }
 
 void getKey(t_data sndData) {
-	int err = msgsnd(msqid, &sndData, sizeof(t_data) - sizeof(long), 0);
-		if(err == -1) {
-			perror("msgsnd() 실패");
-			exit(1);
-	}
+	int err = msgsnd(requestQID, &sndData, sizeof(t_data) - sizeof(long), 0);
+	exceptionErr(err, "getKey request 실패");
 
 	t_data rcvData;
-	err = msgrcv(msqid, &rcvData, sizeof(t_data)-sizeof(long), 2, 0);
-	exceptionErr(err, "rcvData 실패");
+	err = msgrcv(responseQID, &rcvData, sizeof(t_data)-sizeof(long), GET_DATA, 0);
+	exceptionErr(err, "getKey response 실패");
 	printf("key = %d value = %s\n", rcvData.key, rcvData.value);
 
 }
 
-void deleteKey(unsigned int key) {
-
+void deleteKey(t_data sndData) {
+	int err = msgsnd(requestQID, &sndData, sizeof(t_data) - sizeof(long), 0);
+	exceptionErr(err, "deleteKey request 실패");
 }
 
 
 
 int main(){
 	
-	msqid = msgget(msgQKey, IPC_CREAT | 0666);
+	requestQID = msgget(requestQ, IPC_CREAT | 0666);
+	exceptionErr(requestQID, "REQUEST QUEUE ERROR");
+	responseQID = msgget(responseQ, IPC_CREAT | 0666);
+	exceptionErr(responseQID, "RESPONSE QUEUE ERROR");
 
 	while(1) {
-		
 		
 		char op[100];
 		char input[BUFF_SIZE];
@@ -86,7 +87,7 @@ int main(){
 		if(strcmp(op, "push") == 0) {
 			printf("\nPUSH DATA\n");
 			t_data sndData;
-			sndData.data_type = 1;
+			sndData.data_type = PUT_DATA;
 			sndData.key = ndx++;
 			strcpy(sndData.value, input);
 			putKey(sndData);
@@ -94,9 +95,16 @@ int main(){
 		else if(strcmp(op, "get") == 0) {
 			printf("\nGET DATA\n");
 			t_data sndData;
-			sndData.data_type = 2;
+			sndData.data_type = GET_DATA;
 			sndData.key = stringToInt(input);
 			getKey(sndData);
+		}
+		else if(strcmp(op, "del") == 0) {
+			printf("\nDELETE DATA\n");
+			t_data sndData;
+			sndData.data_type = DEL_DATA;
+			sndData.key = stringToInt(input);
+			deleteKey(sndData);
 		}
 
 		

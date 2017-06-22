@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/ipc.h>
@@ -12,6 +11,10 @@
 
 #define BUFF_SIZE 100
 
+#define PUT_DATA 1
+#define GET_DATA 2
+#define DEL_DATA 3
+
 using namespace std;
 
 typedef struct {
@@ -21,9 +24,13 @@ typedef struct {
 } t_data;
 
 
-key_t msgQKey = 1000;
+key_t requestQ = 1000;
+key_t responseQ = 1001;
+
 int ndx = 0;
-int msqid;
+int requestQID;
+int responseQID;
+
 t_data data;
 
 map<unsigned int, string> mainMap;
@@ -72,12 +79,11 @@ void receiveOP();
 
 int main() {
 	readData();
-	msqid = msgget(msgQKey, IPC_CREAT | 0666);
 
-	if(msqid == -1) {
-		perror("msgget() 실패");
-		exit(1);
-	}
+	requestQID = msgget(requestQ, IPC_CREAT | 0666);
+	exceptionErr(requestQID, "REQUEST QUEUE ERROR");
+	responseQID = msgget(responseQ, IPC_CREAT | 0666);
+	exceptionErr(responseQID, "RESPONSE QUEUE ERROR");
 
 	thread t1(&receiveMSG);
 	thread t2(&receiveOP);
@@ -87,17 +93,11 @@ int main() {
 	return 0;
 }
 
-
 void exceptionErr(int err, string s) {
 	if(err == -1) {
 		perror(s.c_str());
 		exit(1);
 	}
-}
-
-void insertData(unsigned int key, char* value) {
-	mainMap.insert(pair<unsigned int, string>(key, value));
-	writeData();
 }
 
 void showMap() {
@@ -106,6 +106,11 @@ void showMap() {
 	for(iter = mainMap.begin(); iter != mainMap.end(); iter++) {
 		printf("%d - %s\n", iter -> first, iter -> second.c_str());
 	}
+}
+
+void insertData(unsigned int key, char* value) {
+	mainMap.insert(pair<unsigned int, string>(key, value));
+	writeData();
 }
 
 void readData() {
@@ -137,12 +142,8 @@ void writeData() {
 void receiveMSG() {
 	while(1){
 		t_data rcvData;
-		int err = msgrcv(msqid, &rcvData, sizeof(t_data)-sizeof(long), 1, 0);
-
-		if(err == -1) {
-			perror("receiveMSG() 실패");
-			exit(1);
-		}
+		int err = msgrcv(requestQID, &rcvData, sizeof(t_data)-sizeof(long), PUT_DATA, 0);
+		exceptionErr(err, "receiveMSG() 실패");
 
 		printf("%d - %s\n", rcvData.key, rcvData.value);
 		// mainList.push_front(rcvData);
@@ -157,24 +158,20 @@ void receiveMSG() {
 void receiveOP() {
 	while(1) {
 		t_data rcvData;
-		int err = msgrcv(msqid, &rcvData, sizeof(t_data)-sizeof(long), 2, 0);
-
-		if(err == -1) {
-			perror("receiveOP() 실패");
-			exit(1);
-		}
-
+		// Request
+		int err = msgrcv(requestQID, &rcvData, sizeof(t_data)-sizeof(long), GET_DATA, 0);
+		exceptionErr(err, "receiveOP() 실패");
 
 		string value = mainMap.find(rcvData.key) -> second;
 
 		t_data sndData;
-		sndData.data_type = 2;
+		sndData.data_type = GET_DATA;
 		sndData.key = rcvData.key;
-		strcmp(sndData.value, value.c_str());
-		
-		printf("key: %d, value %s\n", rcvData.key, value.c_str());
+		strcpy(sndData.value, value.c_str());
+		printf("key: %d, value %s\n", sndData.key, sndData.value);
 
-		err = msgsnd(msqid, &sndData, sizeof(t_data) - sizeof(long), 0);
+		// Response
+		err = msgsnd(responseQID, &sndData, sizeof(t_data) - sizeof(long), 0);
 		exceptionErr(err, "receiveOP() -> msgsnd 실패");
 
 	}

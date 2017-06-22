@@ -17,6 +17,8 @@
 #define DEL_DATA 3
 #define DATA_COUNT 9
 
+#define THREAD_COUNT 5
+
 using namespace std;
 
 typedef struct {
@@ -37,7 +39,7 @@ t_data data;
 
 map<unsigned int, string> storage;
 
-pthread_mutex_t  mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutexs = PTHREAD_MUTEX_INITIALIZER;
 
 
 void insertData(unsigned int key, char* value);
@@ -45,10 +47,10 @@ void showMap();
 void readData();
 void writeData();
 void exceptionErr(int err, string s);
-void receiveMSG();
-void receiveOP();
-void receiveCount();
-void receiveDel();
+void *receiveMSG(void *);
+void *receiveOP(void *);
+void *receiveCount(void *);
+void *receiveDel(void *);
 
 // list<t_data> mainList;
 
@@ -89,15 +91,23 @@ int main() {
 	exceptionErr(requestQID, "REQUEST QUEUE ERROR");
 	responseQID = msgget(responseQ, IPC_CREAT | 0666);
 	exceptionErr(responseQID, "RESPONSE QUEUE ERROR");
+	int thr_id;
+	int status;
+	pthread_t p_thread[THREAD_COUNT];
 
-	thread t1(&receiveMSG);
-	thread t2(&receiveOP);
-	thread t3(&receiveCount);
-	thread t4(&receiveDel);
-	t1.join();
-	t2.join();
-	t3.join();
-	t4.join();
+	thr_id = pthread_create(&p_thread[0], NULL, &receiveMSG, NULL); 
+	sleep(1);
+	thr_id = pthread_create(&p_thread[1], NULL, &receiveOP, NULL); 
+	sleep(1);
+	thr_id = pthread_create(&p_thread[2], NULL, &receiveCount, NULL); 
+	sleep(1);
+	thr_id = pthread_create(&p_thread[3], NULL, &receiveDel, NULL); 
+
+	pthread_join(p_thread[0], (void **)&status);
+	pthread_join(p_thread[1], (void **)&status);
+	pthread_join(p_thread[2], (void **)&status);
+	pthread_join(p_thread[3], (void **)&status);
+
 
 	return 0;
 }
@@ -148,14 +158,16 @@ void writeData() {
 	fclose(file);
 }
 
-void receiveMSG() {
+void *receiveMSG(void *) {
 	while(1){
 		t_data rcvData;
 		int err = msgrcv(requestQID, &rcvData, sizeof(t_data)-sizeof(long), PUT_DATA, 0);
 		exceptionErr(err, "receiveMSG() 실패");
 
 		printf("%d - %s\n", rcvData.key, rcvData.value);
+		pthread_mutex_lock(&mutexs);
 		insertData(rcvData.key, rcvData.value);
+		pthread_mutex_unlock(&mutexs);
 		showMap();
 
 		// mainList.push_front(rcvData);
@@ -165,15 +177,15 @@ void receiveMSG() {
 	}
 }
 
-void receiveOP() {
+void *receiveOP(void *) {
 	while(1) {
 		t_data rcvData;
 		// Request
 		int err = msgrcv(requestQID, &rcvData, sizeof(t_data)-sizeof(long), GET_DATA, 0);
 		exceptionErr(err, "receiveOP() 실패");
-
+		pthread_mutex_lock(&mutexs);
 		string value = storage.find(rcvData.key) -> second;
-
+		
 		t_data sndData;
 		sndData.data_type = GET_DATA;
 		sndData.key = rcvData.key;
@@ -182,12 +194,13 @@ void receiveOP() {
 
 		// Response
 		err = msgsnd(responseQID, &sndData, sizeof(t_data) - sizeof(long), 0);
+		pthread_mutex_unlock(&mutexs);
 		exceptionErr(err, "receiveOP() -> msgsnd 실패");
 
 	}
 }
 
-void receiveDel() {
+void *receiveDel(void *) {
 	while(1) {
 		t_data rcvData;
 		int err = msgrcv(requestQID, &rcvData, sizeof(t_data)-sizeof(long), DEL_DATA, 0);
@@ -199,7 +212,7 @@ void receiveDel() {
 	
 }
 
-void receiveCount() {
+void *receiveCount(void *) {
 	while(1) {
 		t_data rcvData;
 

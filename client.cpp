@@ -109,17 +109,16 @@ void generateRandomData() {
 		strcpy(sndData.value, str.c_str());
 		putKey(sndData);
 	}
-
 }
 
 void geneateTestSet() {
 	int n = rand()%90 + 100;
 	while(n--) {
 		int select = rand()%100 + 1;
-		if(select <= 95) {
+		if(select <= 95 && ndx > 1) {
 			t_data sndData;
 			sndData.data_type = GET_DATA;
-			sndData.key = rand()%ndx;
+			sndData.key = rand()%(ndx-1) + 1;
 			getKey(sndData);
 		}
 		else {
@@ -133,6 +132,10 @@ void geneateTestSet() {
 	}
 }
 
+
+void threadFunc() {
+	
+}
 
 int main(){
 	

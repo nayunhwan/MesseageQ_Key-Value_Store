@@ -47,9 +47,13 @@ void showMap();
 void readData();
 void writeData();
 void exceptionErr(int err, string s);
-void *receiveMSG(void *);
-void *receiveOP(void *);
+// PUT을 처리하기 위한 Thread Function
+void *receviePUT(void *);
+// GET을 처리하기 위한 Thread Function
+void *recevieGET(void *);
+// Count를 처리하기 위한 Thread Function
 void *receiveCount(void *);
+// Delete를 처리하기 위한 Thread Function
 void *receiveDel(void *);
 void generateBaseDateSet();
 
@@ -90,7 +94,6 @@ int main() {
 
 	readData();
 	if(storage.size() == 1) {
-		printf("??\n");
 		generateBaseDateSet();
 		writeData();
 		showMap();
@@ -103,9 +106,9 @@ int main() {
 	int status;
 	pthread_t p_thread[THREAD_COUNT];
 
-	thr_id = pthread_create(&p_thread[0], NULL, &receiveMSG, NULL); 
+	thr_id = pthread_create(&p_thread[0], NULL, &receviePUT, NULL); 
 	sleep(1);
-	thr_id = pthread_create(&p_thread[1], NULL, &receiveOP, NULL); 
+	thr_id = pthread_create(&p_thread[1], NULL, &recevieGET, NULL); 
 	sleep(1);
 	thr_id = pthread_create(&p_thread[2], NULL, &receiveCount, NULL); 
 	sleep(1);
@@ -166,12 +169,13 @@ void writeData() {
 	fclose(file);
 }
 
-void *receiveMSG(void *) {
+void *receviePUT(void *) {
 	while(1){
 		t_data rcvData;
+		// Thread 동기화를 위한 Mutex Lock
 		pthread_mutex_lock(&mutexs);
 		int err = msgrcv(requestQID, &rcvData, sizeof(t_data)-sizeof(long), PUT_DATA, 0);
-		exceptionErr(err, "receiveMSG() 실패");
+		exceptionErr(err, "receviePUT() 실패");
 
 		printf("%d - %s\n", rcvData.key, rcvData.value);
 		
@@ -186,12 +190,12 @@ void *receiveMSG(void *) {
 	}
 }
 
-void *receiveOP(void *) {
+void *recevieGET(void *) {
 	while(1) {
 		t_data rcvData;
 		// Request
 		int err = msgrcv(requestQID, &rcvData, sizeof(t_data)-sizeof(long), GET_DATA, 0);
-		exceptionErr(err, "receiveOP() 실패");
+		exceptionErr(err, "recevieGET() 실패");
 		// pthread_mutex_lock(&mutexs);
 		string value = storage.find(rcvData.key) -> second;
 		// pthread_mutex_unlock(&mutexs);
@@ -204,7 +208,7 @@ void *receiveOP(void *) {
 		// Response
 		err = msgsnd(responseQID, &sndData, sizeof(t_data) - sizeof(long), 0);
 		
-		exceptionErr(err, "receiveOP() -> msgsnd 실패");
+		exceptionErr(err, "recevieGET() -> msgsnd 실패");
 		sleep(1);
 
 	}

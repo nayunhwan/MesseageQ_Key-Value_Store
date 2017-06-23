@@ -51,6 +51,7 @@ void *receiveMSG(void *);
 void *receiveOP(void *);
 void *receiveCount(void *);
 void *receiveDel(void *);
+void generateBaseDateSet();
 
 // list<t_data> mainList;
 
@@ -85,8 +86,15 @@ void *receiveDel(void *);
 
 
 int main() {
-	readData();
+	srand(time(NULL));
 
+	readData();
+	if(storage.size() == 1) {
+		printf("??\n");
+		generateBaseDateSet();
+		writeData();
+		showMap();
+	}
 	requestQID = msgget(requestQ, IPC_CREAT | 0666);
 	exceptionErr(requestQID, "REQUEST QUEUE ERROR");
 	responseQID = msgget(responseQ, IPC_CREAT | 0666);
@@ -161,11 +169,12 @@ void writeData() {
 void *receiveMSG(void *) {
 	while(1){
 		t_data rcvData;
+		pthread_mutex_lock(&mutexs);
 		int err = msgrcv(requestQID, &rcvData, sizeof(t_data)-sizeof(long), PUT_DATA, 0);
 		exceptionErr(err, "receiveMSG() 실패");
 
 		printf("%d - %s\n", rcvData.key, rcvData.value);
-		pthread_mutex_lock(&mutexs);
+		
 		insertData(rcvData.key, rcvData.value);
 		pthread_mutex_unlock(&mutexs);
 		showMap();
@@ -183,9 +192,9 @@ void *receiveOP(void *) {
 		// Request
 		int err = msgrcv(requestQID, &rcvData, sizeof(t_data)-sizeof(long), GET_DATA, 0);
 		exceptionErr(err, "receiveOP() 실패");
-		pthread_mutex_lock(&mutexs);
+		// pthread_mutex_lock(&mutexs);
 		string value = storage.find(rcvData.key) -> second;
-		
+		// pthread_mutex_unlock(&mutexs);
 		t_data sndData;
 		sndData.data_type = GET_DATA;
 		sndData.key = rcvData.key;
@@ -194,8 +203,9 @@ void *receiveOP(void *) {
 
 		// Response
 		err = msgsnd(responseQID, &sndData, sizeof(t_data) - sizeof(long), 0);
-		pthread_mutex_unlock(&mutexs);
+		
 		exceptionErr(err, "receiveOP() -> msgsnd 실패");
+		sleep(1);
 
 	}
 }
@@ -225,5 +235,25 @@ void *receiveCount(void *) {
 		printf("size = %lu\n", storage.size());
 		err = msgsnd(responseQID, &sndData, sizeof(t_data) - sizeof(long), 0);
 		exceptionErr(err, "receiveCount() -> response 실패");		
+	}
+}
+
+string generateRandomString() {
+	string str;
+	int len = rand()%10 + 10;
+	char s[len];
+	for(int i = 0; i < len; i++){
+		s[i] = (rand()%2 == 0)? rand()%('z'-'a') + 'a' : rand()%('z'-'a') + 'A';
+	}
+	s[len] = '\0';
+	str = s;
+	return str;
+}
+
+void generateBaseDateSet() {
+	int key = 1;
+	while(key <= 100) {
+		string value = generateRandomString();
+		storage.insert(pair<unsigned int, string>(key++, value));	
 	}
 }

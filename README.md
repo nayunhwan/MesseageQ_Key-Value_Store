@@ -1,7 +1,7 @@
 ### File list
 * Report
-* Success.zip - Soucre file(It works)
-* Fail.zip - Ideal Source file but It does not work
+* Success.zip - Soucre file (It works)
+* Fail.zip - Ideal Source file but `It does not work`
 
 ### File Structure
 * server.cpp - Source code for Server

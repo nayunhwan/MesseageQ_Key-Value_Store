@@ -1,3 +1,6 @@
+# MessageQueue Key Value Store
+This is a assignment project in Hanyang University Operating System course(COM2005)
+
 ### File list
 * Report
 * Success.zip - Soucre file (It works)
